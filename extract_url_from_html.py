@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 if __name__ == '__main__':
     # 连接到数据库
-    conn = sqlite3.connect('./data/html/html_data_27_substr.db')
+    conn = sqlite3.connect('./data/html/html_data_33_substr.db')
     cursor = conn.cursor()
     cursor.execute("SELECT url FROM html_data WHERE status_code = 200")
     results = cursor.fetchall()
@@ -18,10 +18,10 @@ if __name__ == '__main__':
     for row in tqdm(results):
         link = row[0]
         # 连接到数据库
-        conn = sqlite3.connect('./data/html/html_data_27_substr.db')
+        conn = sqlite3.connect('./data/html/html_data_33_substr.db')
         cursor = conn.cursor()
         # 执行查询
-        cursor.execute(query, (link,))
+        cursor.execute(query, (link, ))
         result = cursor.fetchall()
         conn.close()
 
