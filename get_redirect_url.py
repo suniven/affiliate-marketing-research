@@ -1,4 +1,4 @@
-import time
+import sys
 import pandas as pd
 import requests
 from fake_useragent import UserAgent
@@ -9,8 +9,17 @@ proxies = {
     'http': 'http://127.0.0.1:7890',
     'https': 'http://127.0.0.1:7890',
 }
+
 ua = UserAgent()
-df = pd.read_csv('./data/urls-to-be-redirected/youtube.csv')
+
+# 获取输入文件名和输出文件名
+input_file_path = f'./data/urls-to-be-redirected/google-splited/'
+output_file_path = f'./data/urls-with-redirection/google-splited/'
+input_file = input_file_path + sys.argv[1] + '.csv'
+output_file = output_file_path + sys.argv[1] + '.feather'
+
+# 读取输入文件
+df = pd.read_csv(input_file)
 df = df.reindex(columns=df.columns.to_list() + ['redirect_urls', 'final_url'])
 df[['redirect_urls', 'final_url']] = df[['redirect_urls', 'final_url']].astype('object')
 
@@ -45,11 +54,11 @@ def process_url(i):
     # 增加计时器值
     timer += 1
 
-    # 每处理 1000条数据 保存一次 DataFrame
+    # 每处理 1000 条数据 保存一次 DataFrame
     if timer >= 1000:
         print('Saving DataFrame...')
         with lock:
-            df.to_feather('./data/urls-with-redirection/youtube-search.feather')
+            df.to_feather(output_file)
 
         # 重置计时器
         timer = 0
@@ -70,4 +79,4 @@ for future in futures:
 
 # 保存最终的 DataFrame
 with lock:
-    df.to_feather('./data/urls-with-redirection/youtube-search.feather')
+    df.to_feather(output_file)
