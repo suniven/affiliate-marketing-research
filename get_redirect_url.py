@@ -1,35 +1,58 @@
+import time
 import pandas as pd
 import requests
 from fake_useragent import UserAgent
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 proxies = {
     'http': 'http://127.0.0.1:7890',
     'https': 'http://127.0.0.1:7890',
 }
 ua = UserAgent()
-df = pd.read_feather('./data/urls in webpage/urls-in-html-unique-filtered.feather')
+df = pd.read_csv('./data/urls-to-be-redirected/youtube.csv')
+df = df.reindex(columns=df.columns.to_list() + ['redirect_urls', 'final_url'])
+df[['redirect_urls', 'final_url']] = df[['redirect_urls', 'final_url']].astype('object')
 
+# 创建锁
+lock = Lock()
 
-# aff = list(set(df[df['is_affiliate'] == 1].url.to_list()))
-# df_aff = pd.DataFrame(data=aff, columns=['url'])
+# 设置计时器初始值为 0
+timer = 0
 
 
 def process_url(i):
-    url = df.at[i, 'url']
-    user_agent = ua.random
-    headers = {'User-Agent': user_agent}
+    global timer
+    url = df.at[i, 'original_url']
+    # user_agent = ua.random
+    # headers = {'User-Agent': user_agent}
+    headers = {
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'}
     try:
-        response = requests.get(url=url, proxies=proxies, timeout=10)
+        response = requests.get(url=url, proxies=proxies, headers=headers, timeout=10)
     except:
         return
+
     if response.history:
+        redirect_urls = []
         for redirect_cnt, history in enumerate(response.history):
-            column_name = 'redirect_' + str(redirect_cnt + 1)
-            df.at[i, column_name] = history.url
-    df.at[i, 'final_page'] = response.url
+            redirect_urls.append(history.url)
+        df.at[i, 'redirect_urls'] = redirect_urls
+    df.at[i, 'final_url'] = response.url
 
     print("URL index:", i)
+
+    # 增加计时器值
+    timer += 1
+
+    # 每处理 1000条数据 保存一次 DataFrame
+    if timer >= 1000:
+        print('Saving DataFrame...')
+        with lock:
+            df.to_feather('./data/urls-with-redirection/youtube-search.feather')
+
+        # 重置计时器
+        timer = 0
 
 
 # 创建线程池
@@ -45,74 +68,6 @@ for i in range(len(df)):
 for future in futures:
     future.result()
 
-df.to_feather('./data/urls in webpage/urls-in-html-uf-with-redirection.feather', index=False)
-
-# import pandas as pd
-# import requests
-
-# from fake_useragent import UserAgent
-# import asyncio
-
-# proxies = {
-#     'http': 'http://127.0.0.1:10809',
-#     'https': 'http://127.0.0.1:10809',
-# }
-# ua = UserAgent()
-# df = pd.read_feather(
-#     './data/urls in webpage/urls-in-text-125substr-labeled.feather')
-# aff = list(set(df[df['is_affiliate'] == 1].url.to_list()))
-# df_aff = pd.DataFrame(data=aff, columns=['url'])
-
-
-# def get_next_url(url: str) -> str:
-#     user_agent = ua.random
-#     headers = {'User-Agent': user_agent}
-#     try:
-#         response = requests.get(url=url, proxies=proxies,
-#                                 headers=headers, timeout=10)
-#         return response.url
-#     except:
-#         return ""
-
-
-# async def process_url(i, semaphore):
-#     async with semaphore:
-#         pre = df_aff.at[i, 'url']
-#         redirect_cnt = 0
-#         res = get_next_url(pre)
-#         while res:
-#             if res == pre:  # 已经到达 final page
-#                 df_aff.at[i, 'final_page'] = res
-#                 break
-#             else:
-#                 redirect_cnt += 1
-#                 column_name = 'redirect_' + str(redirect_cnt)
-#                 df_aff.at[i, column_name] = res
-#                 pre = res
-#                 res = get_next_url(pre)
-
-#         # 输出处理结果
-#         print("URL index:", i)
-
-# # 创建事件循环
-# loop = asyncio.get_event_loop()
-
-# # 创建协程任务列表
-# tasks = []
-
-# # 创建信号量以限制最大并发协程数量
-# semaphore = asyncio.Semaphore(1)
-
-# # 协程处理每个URL
-# for i in range(len(df_aff)):
-#     task = asyncio.ensure_future(process_url(i, semaphore))
-#     tasks.append(task)
-
-# # 执行协程任务
-# loop.run_until_complete(asyncio.wait(tasks))
-
-# # 关闭事件循环
-# loop.close()
-
-# df_aff.to_csv(
-#     './data/urls in webpage/affiliate-urls-with-redirection-125substr.csv', index=False)
+# 保存最终的 DataFrame
+with lock:
+    df.to_feather('./data/urls-with-redirection/youtube-search.feather')
